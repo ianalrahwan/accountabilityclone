@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createGoal } from '@/app/actions'
+import StakeFields from '@/components/StakeFields'
 
 export default function NewGoalPage() {
   return (
@@ -51,6 +52,8 @@ export default function NewGoalPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
+
+          <StakeFields />
 
           <button
             type="submit"

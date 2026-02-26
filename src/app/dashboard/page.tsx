@@ -13,13 +13,14 @@ export default async function DashboardPage() {
 
   if (!user) redirect('/')
 
-  // Fetch goals with last check-in and partnership info
+  // Fetch goals with last check-in, partnership, and stake contract info
   const { data: goals } = await supabase
     .from('goals')
     .select(`
       *,
       partnerships (*),
-      checkins (checked_at)
+      checkins (checked_at),
+      stake_contracts (*)
     `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
@@ -38,6 +39,7 @@ export default async function DashboardPage() {
       created_at: g.created_at,
       partnership: g.partnerships?.[0] ?? null,
       last_checkin: checkinDates[0] ?? null,
+      stake_contract: g.stake_contracts?.[0] ?? null,
     }
   })
 
@@ -57,6 +59,12 @@ export default async function DashboardPage() {
                 className="w-8 h-8 rounded-full"
               />
             )}
+            <Link
+              href="/settings"
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Settings
+            </Link>
             <SignOutButton />
           </div>
         </div>

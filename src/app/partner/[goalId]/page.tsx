@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CheckinHistory from '@/components/CheckinHistory'
-import type { Checkin } from '@/lib/types'
+import type { Checkin, StakeContract, DeductionLog } from '@/lib/types'
 
 export default async function PartnerViewPage({
   params,
@@ -39,11 +39,34 @@ export default async function PartnerViewPage({
 
   if (!goal) notFound()
 
-  const { data: checkins } = await supabase
-    .from('checkins')
-    .select('*')
-    .eq('goal_id', goalId)
-    .order('checked_at', { ascending: false })
+  const [{ data: checkins }, { data: stakeContractData }] = await Promise.all([
+    supabase
+      .from('checkins')
+      .select('*')
+      .eq('goal_id', goalId)
+      .order('checked_at', { ascending: false }),
+    supabase
+      .from('stake_contracts')
+      .select('*')
+      .eq('goal_id', goalId)
+      .maybeSingle(),
+  ])
+
+  const stakeContract = stakeContractData as StakeContract | null
+
+  // Fetch deduction log if stake contract exists
+  let missedCount = 0
+  let totalDeducted = 0
+  if (stakeContract) {
+    const { data: logs } = await supabase
+      .from('deduction_log')
+      .select('*')
+      .eq('contract_id', stakeContract.id)
+
+    const deductions = (logs ?? []) as DeductionLog[]
+    missedCount = deductions.filter(d => d.was_missed).length
+    totalDeducted = deductions.filter(d => d.was_missed).reduce((sum, d) => sum + d.amount_cents, 0)
+  }
 
   const owner = goal.profiles as { full_name: string | null; email: string }
   const ownerName = owner.full_name || owner.email
@@ -78,6 +101,26 @@ export default async function PartnerViewPage({
             <p className="mt-1 text-gray-500">{goal.description}</p>
           )}
         </div>
+
+        {/* Stake banner */}
+        {stakeContract && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+            <p className="text-xs text-amber-600 font-medium uppercase tracking-wide mb-1">
+              Financial stake
+            </p>
+            <p className="text-lg font-bold text-amber-900">
+              ${(stakeContract.total_stake_cents / 100).toFixed(2)} on the line
+            </p>
+            <p className="text-sm text-amber-700 mt-1">
+              {missedCount > 0
+                ? `${missedCount} missed check-in${missedCount > 1 ? 's' : ''} — $${(totalDeducted / 100).toFixed(2)} deducted`
+                : 'No missed check-ins yet'}
+            </p>
+            <p className="text-xs text-amber-500 mt-1">
+              Recipient: {stakeContract.recipient_email}
+            </p>
+          </div>
+        )}
 
         {/* Progress summary */}
         <div className="grid grid-cols-2 gap-3">

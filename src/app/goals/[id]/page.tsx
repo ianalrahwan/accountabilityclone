@@ -4,8 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import CheckinButton from '@/components/CheckinButton'
 import CheckinHistory from '@/components/CheckinHistory'
 import PartnerForm from '@/components/PartnerForm'
+import StakeContractCard from '@/components/StakeContractCard'
 import { deleteGoal } from '@/app/actions'
-import type { Checkin, Partnership } from '@/lib/types'
+import { computeRequiredPeriods, computeStakePerPeriod } from '@/lib/stakes'
+import type { Checkin, Partnership, StakeContract, DeductionLog } from '@/lib/types'
 
 function isToday(iso: string) {
   const d = new Date(iso)
@@ -39,7 +41,7 @@ export default async function GoalDetailPage({
 
   if (!goal) notFound()
 
-  const [{ data: checkins }, { data: partnership }] = await Promise.all([
+  const [{ data: checkins }, { data: partnership }, { data: stakeContract }] = await Promise.all([
     supabase
       .from('checkins')
       .select('*')
@@ -50,11 +52,45 @@ export default async function GoalDetailPage({
       .select('*')
       .eq('goal_id', id)
       .maybeSingle(),
+    supabase
+      .from('stake_contracts')
+      .select('*')
+      .eq('goal_id', id)
+      .maybeSingle(),
   ])
 
   const checkedInToday = (checkins ?? []).some((c: Checkin) =>
     isToday(c.checked_at)
   )
+
+  // Fetch deductions if stake contract exists
+  let deductions: DeductionLog[] = []
+  let totalPeriods = 0
+  let checkedInPeriods = 0
+  let stakePerPeriod = 0
+
+  if (stakeContract) {
+    const sc = stakeContract as StakeContract
+    const { data: logs } = await supabase
+      .from('deduction_log')
+      .select('*')
+      .eq('contract_id', sc.id)
+      .order('processed_at', { ascending: false })
+
+    deductions = (logs ?? []) as DeductionLog[]
+
+    const contractInput = {
+      frequency: sc.frequency,
+      starts_at: sc.starts_at,
+      ends_at: sc.ends_at,
+      timezone: sc.timezone,
+      total_stake_cents: sc.total_stake_cents,
+    }
+    const now = new Date()
+    totalPeriods = computeRequiredPeriods(contractInput, now).length
+    checkedInPeriods = deductions.filter(d => !d.was_missed).length
+    stakePerPeriod = computeStakePerPeriod(contractInput, now)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -98,6 +134,17 @@ export default async function GoalDetailPage({
 
         {/* Check-in button */}
         <CheckinButton goalId={id} checkedInToday={checkedInToday} />
+
+        {/* Stake contract */}
+        {stakeContract && (
+          <StakeContractCard
+            contract={stakeContract as StakeContract}
+            deductions={deductions}
+            totalPeriods={totalPeriods}
+            checkedInPeriods={checkedInPeriods}
+            stakePerPeriod={stakePerPeriod}
+          />
+        )}
 
         {/* Partner section */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
