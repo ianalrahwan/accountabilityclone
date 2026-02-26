@@ -5,7 +5,7 @@ import CheckinButton from '@/components/CheckinButton'
 import CheckinHistory from '@/components/CheckinHistory'
 import PartnerForm from '@/components/PartnerForm'
 import StakeContractCard from '@/components/StakeContractCard'
-import { deleteGoal } from '@/app/actions'
+import DeleteGoalButton from '@/components/DeleteGoalButton'
 import { computeRequiredPeriods, computeStakePerPeriod } from '@/lib/stakes'
 import type { Checkin, Partnership, StakeContract, DeductionLog } from '@/lib/types'
 
@@ -102,24 +102,7 @@ export default async function GoalDetailPage({
           >
             &larr; My goals
           </Link>
-          <form
-            action={async () => {
-              'use server'
-              await deleteGoal(id)
-            }}
-          >
-            <button
-              type="submit"
-              className="text-xs text-red-400 hover:text-red-600 transition-colors"
-              onClick={(e) => {
-                if (!confirm('Delete this goal? This cannot be undone.')) {
-                  e.preventDefault()
-                }
-              }}
-            >
-              Delete goal
-            </button>
-          </form>
+          <DeleteGoalButton goalId={id} />
         </div>
       </nav>
 

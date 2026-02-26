@@ -81,14 +81,6 @@ create trigger on_profile_created_link_partnerships
   for each row execute function public.handle_new_user_partnership();
 
 -- =========================================================
--- Helper: read goal owner without triggering RLS (breaks recursion)
--- =========================================================
-create or replace function public.goal_owner_id(gid uuid)
-returns uuid as $$
-  select user_id from public.goals where id = gid;
-$$ language sql security definer stable;
-
--- =========================================================
 -- Row Level Security
 -- =========================================================
 alter table profiles enable row level security;
@@ -128,22 +120,38 @@ create policy "Partner can view goals"
 -- partnerships: owner can CRUD; partner can view (no circular reference to goals)
 create policy "Goal owner can insert partnerships"
   on partnerships for insert with check (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = partnerships.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can update partnerships"
   on partnerships for update using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = partnerships.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can delete partnerships"
   on partnerships for delete using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = partnerships.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can view partnerships"
   on partnerships for select using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = partnerships.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Partner can view their partnerships"
@@ -154,17 +162,29 @@ create policy "Partner can view their partnerships"
 -- checkins: owner can insert and view; partner can view
 create policy "Goal owner can insert checkins"
   on checkins for insert with check (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = checkins.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can view checkins"
   on checkins for select using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = checkins.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can delete checkins"
   on checkins for delete using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = checkins.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Partner can view checkins"
@@ -257,22 +277,38 @@ create policy "User owns their paypal tokens"
 -- stake_contracts: goal owner manages; recipient can view
 create policy "Goal owner can insert stake contracts"
   on stake_contracts for insert with check (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = stake_contracts.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can update stake contracts"
   on stake_contracts for update using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = stake_contracts.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can delete stake contracts"
   on stake_contracts for delete using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = stake_contracts.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Goal owner can view stake contracts"
   on stake_contracts for select using (
-    goal_owner_id(goal_id) = auth.uid()
+    exists (
+      select 1 from goals
+      where goals.id = stake_contracts.goal_id
+        and goals.user_id = auth.uid()
+    )
   );
 
 create policy "Recipient can view stake contracts"
@@ -285,8 +321,9 @@ create policy "Goal owner can view deductions"
   on deduction_log for select using (
     exists (
       select 1 from stake_contracts sc
+      join goals g on g.id = sc.goal_id
       where sc.id = deduction_log.contract_id
-        and goal_owner_id(sc.goal_id) = auth.uid()
+        and g.user_id = auth.uid()
     )
   );
 
